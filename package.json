@@ -20,7 +20,9 @@
   },
   "homepage": "https://github.com/Aldy0125/flyrank-mini-backend#readme",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.22.0"
   }
 }
