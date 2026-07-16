@@ -1,0 +1,4 @@
+## BE-04: Containerize Your Stack
+
+- **Repository Implementation**: The PostgreSQL repository has successfully replaced the previous in-memory repository. The service layer and API routes remain completely unchanged, proving the efficiency of the clean architecture.
+- **Data Persistence Proof**: Data persistence was verified by running `docker compose down` to remove all running containers and then restarting the stack using `docker compose up -d`. The intern profile and status data remained intact and were successfully reloaded on the `/status` endpoint, confirming that the Docker volume (`postgres_data`) is functioning correctly.

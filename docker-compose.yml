@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: flyrank_postgres_db
+    environment:
+      POSTGRES_USER: flyrank_user
+      POSTGRES_PASSWORD: flyrank_password
+      POSTGRES_DB: flyrank_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: flyrank_backend_app
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=postgres://flyrank_user:flyrank_password@db:5432/flyrank_db
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
