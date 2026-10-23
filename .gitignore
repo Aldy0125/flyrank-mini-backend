@@ -1,2 +1,4 @@
 node_modules/
 .env
+# Local BE-09 SQLite database
+be-09-ai-decision-flow/.data/
