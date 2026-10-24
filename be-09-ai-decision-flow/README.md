@@ -1,36 +1,162 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BE-09: Build an AI Decision Flow with React Flow + Inngest
+
+A visual AI workflow application built with Next.js, React Flow, Inngest, the OpenAI SDK, Groq, and SQLite.
+
+The application allows users to create decision nodes, connect them through YES/NO branches, execute workflows using AI, and inspect execution history and decision logs.
+
+## Features
+
+- Visual workflow editor powered by React Flow.
+- Create decision nodes and edit their prompts.
+- Connect nodes using YES and NO branches.
+- Execute AI decisions through Inngest.
+- Use Groq through the OpenAI SDK.
+- Validate AI responses as YES or NO.
+- Track workflow execution status and decision logs.
+- Store execution history in a local SQLite database.
+- View previous executions and their details.
+- Handle workflow errors and invalid graph connections.
+
+## Tech Stack
+
+- Next.js
+- React and TypeScript
+- React Flow (`@xyflow/react`)
+- Inngest
+- OpenAI SDK
+- Groq API
+- SQLite using Node.js `node:sqlite`
+- Tailwind CSS and shadcn/ui
+
+## Prerequisites
+
+- Node.js with support for `node:sqlite`. Node.js 24 is recommended.
+- npm
+- A Groq API key
+- Git
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/Aldy0125/flyrank-mini-backend.git
+cd flyrank-mini-backend/be-09-ai-decision-flow
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure environment variables
+
+Create a `.env.local` file in the `be-09-ai-decision-flow` directory.
+
+Add your Groq API key:
+
+```env
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+Replace the placeholder with your own API key.
+
+Never commit `.env.local` or expose your API key in source code or public repositories.
+
+### 4. Start the Next.js application
+
+Open a terminal in the project directory and run:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The application normally runs at:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+http://localhost:3000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 5. Start the Inngest Dev Server
 
-## Learn More
+Open a second terminal in the same project directory and run:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx inngest-cli@latest dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The Inngest Dev Server normally runs at:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+http://localhost:8288
 
-## Deploy on Vercel
+Keep both development servers running while testing workflow execution.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## How It Works
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Create decision nodes in the visual editor.
+2. Enter a prompt for each node.
+3. Connect nodes using YES and NO branches.
+4. Start workflow execution from the application.
+5. Inngest executes the workflow steps.
+6. The AI evaluates each visited node and returns YES or NO.
+7. The workflow follows the matching outgoing edge.
+8. Execution status and decision logs are stored and displayed in the application.
+9. Open an item in Execution History to inspect its details.
+
+The workflow includes validation for node IDs, prompts, graph connections, and AI responses. It also detects cycles and limits the number of nodes processed in a single execution.
+
+## API Endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/run-workflow` | Starts a workflow execution |
+| `GET /api/executions` | Retrieves execution history |
+| `GET /api/executions/[executionId]` | Retrieves an execution and its decision logs |
+| `/api/inngest` | Inngest integration endpoint |
+| `/api/test-ai` | Tests the AI integration |
+
+## Data Storage
+
+Workflow execution records and decision logs are stored in a local SQLite database:
+
+```text
+.data/be09.sqlite
+```
+
+The database directory is excluded from Git. The application creates the database when it initializes the workflow store.
+
+The local SQLite database is intended for development. Production deployment requires an appropriate persistent database strategy.
+
+## Validation
+
+Run the following commands from the project directory:
+
+### TypeScript
+
+```bash
+npx tsc --noEmit
+```
+
+### ESLint
+
+```bash
+npm run lint
+```
+
+### Production build
+
+```bash
+npm run build
+```
+
+The project should pass these checks before submission.
+
+## Repository
+
+https://github.com/Aldy0125/flyrank-mini-backend
+
+## Assignment Information
+
+- Assignment: BE-09
+- Track: Backend AI Engineering
+- Week: 7
+- Title: Build an AI Decision Flow with React Flow + Inngest
