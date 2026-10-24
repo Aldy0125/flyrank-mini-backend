@@ -62,6 +62,22 @@ type ExecutionResponse = {
   execution?: ExecutionSnapshot;
   error?: string;
 };
+type WorkflowExecutionSummary = {
+  id: string;
+  status: WorkflowStatus;
+  currentNodeId: string | null;
+  startedAt: string;
+  completedAt?: string;
+  error?: string;
+  logCount: number;
+};
+
+type ExecutionHistoryResponse = {
+  success?: boolean;
+  count?: number;
+  executions?: WorkflowExecutionSummary[];
+  error?: string;
+};
 
 const initialNodes: DecisionNode[] = [
   {
@@ -215,9 +231,74 @@ export default function FlowEditor() {
   const [executionError, setExecutionError] =
     useState<string | null>(null);
 
+    const [executionHistory, setExecutionHistory] =
+  useState<WorkflowExecutionSummary[]>([]);
+
+const [historyLoading, setHistoryLoading] =
+  useState(true);
+
+const [historyError, setHistoryError] =
+  useState<string | null>(null);
+
+const [historyRefreshKey, setHistoryRefreshKey] =
+  useState(0);
+
   const selectedNode = nodes.find(
     (node) => node.id === selectedNodeId
   );
+
+ useEffect(() => {
+  let cancelled = false;
+
+  async function loadExecutionHistory(): Promise<void> {
+    try {
+      const response = await fetch(
+        "/api/executions?limit=20",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
+
+      const result =
+        (await response.json()) as ExecutionHistoryResponse;
+
+      if (
+        !response.ok ||
+        !result.success ||
+        !Array.isArray(result.executions)
+      ) {
+        throw new Error(
+          result.error ??
+            `Failed to load execution history. HTTP ${response.status}.`
+        );
+      }
+
+      if (!cancelled) {
+        setExecutionHistory(result.executions);
+        setHistoryError(null);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setHistoryError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load execution history."
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setHistoryLoading(false);
+      }
+    }
+  }
+
+  void loadExecutionHistory();
+
+  return () => {
+    cancelled = true;
+  };
+}, [historyRefreshKey]);
 
   // Poll execution status and decision logs.
  useEffect(() => {
@@ -275,6 +356,13 @@ export default function FlowEditor() {
         setExecutionDetails(execution);
         setExecutionStatus(execution.status);
         setExecutionError(execution.error ?? null);
+
+        if (
+  execution.status === "completed" ||
+  execution.status === "failed"
+) {
+  setHistoryRefreshKey((current) => current + 1);
+}
 
         if (
           execution.status === "queued" ||
@@ -692,6 +780,87 @@ export default function FlowEditor() {
             {notice}
           </div>
         )}
+
+<section className="mb-5 rounded-xl border border-slate-800 bg-slate-900 p-4">
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <h2 className="font-semibold">
+      Execution History
+    </h2>
+
+    <button
+      type="button"
+      onClick={() => {
+        setHistoryLoading(true);
+        setHistoryRefreshKey((current) => current + 1);
+      }}
+      className="rounded-lg border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
+    >
+      Refresh History
+    </button>
+  </div>
+
+  {historyLoading ? (
+    <p className="mt-3 text-sm text-slate-400">
+      Loading execution history...
+    </p>
+  ) : historyError ? (
+    <p
+      role="alert"
+      className="mt-3 text-sm text-red-400"
+    >
+      {historyError}
+    </p>
+  ) : executionHistory.length === 0 ? (
+    <p className="mt-3 text-sm text-slate-400">
+      No execution history found.
+    </p>
+  ) : (
+    <div className="mt-3 space-y-2">
+      {executionHistory.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => {
+            setExecutionId(item.id);
+            setExecutionError(null);
+            setNotice("");
+          }}
+          className={`w-full rounded-lg border p-3 text-left transition ${
+            executionId === item.id
+              ? "border-blue-500 bg-slate-800"
+              : "border-slate-800 bg-slate-950 hover:border-slate-600"
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span
+              className={`font-semibold ${getStatusColor(item.status)}`}
+            >
+              {item.status}
+            </span>
+
+            <span className="text-xs text-slate-400">
+              {item.logCount} Decision Logs
+            </span>
+          </div>
+
+          <p className="mt-2 break-all font-mono text-xs text-slate-300">
+            {item.id}
+          </p>
+
+          <p className="mt-2 text-xs text-slate-400">
+            Started: {formatTimestamp(item.startedAt)}
+          </p>
+
+          {item.completedAt && (
+            <p className="mt-1 text-xs text-slate-400">
+              Completed: {formatTimestamp(item.completedAt)}
+            </p>
+          )}
+        </button>
+      ))}
+    </div>
+  )}
+</section>
 
         {executionId && (
           <section className="mb-5 rounded-xl border border-slate-800 bg-slate-900 p-4">

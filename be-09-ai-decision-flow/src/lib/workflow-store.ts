@@ -27,6 +27,16 @@ export type WorkflowExecution = {
   completedAt?: string;
 };
 
+export type WorkflowExecutionSummary = {
+  id: string;
+  status: WorkflowStatus;
+  currentNodeId: string | null;
+  startedAt: string;
+  completedAt?: string;
+  error?: string;
+  logCount: number;
+};
+
 type ExecutionRow = {
   id: string;
   status: string;
@@ -44,6 +54,16 @@ type LogRow = {
   timestamp: string;
 };
 
+type ExecutionSummaryRow = {
+  id: string;
+  status: string;
+  current_node_id: string | null;
+  started_at: string;
+  completed_at: string | null;
+  error: string | null;
+  log_count: number;
+};
+
 type WorkflowGlobal = typeof globalThis & {
   __be09WorkflowDatabase?: DatabaseSync;
 };
@@ -57,7 +77,9 @@ const databasePath = join(
 );
 
 function initializeDatabase(): DatabaseSync {
-  mkdirSync(dirname(databasePath), { recursive: true });
+  mkdirSync(dirname(databasePath), {
+    recursive: true,
+  });
 
   const connection = new DatabaseSync(databasePath);
 
@@ -263,6 +285,60 @@ export function getExecution(
   return execution;
 }
 
+export function listExecutionSummaries(
+  limit = 20
+): WorkflowExecutionSummary[] {
+  const safeLimit = Math.max(
+    1,
+    Math.min(Math.floor(limit) || 20, 100)
+  );
+
+  const rows = database
+    .prepare(`
+      SELECT
+        e.id,
+        e.status,
+        e.current_node_id,
+        e.started_at,
+        e.completed_at,
+        e.error,
+        COUNT(l.id) AS log_count
+      FROM workflow_executions e
+      LEFT JOIN workflow_logs l
+        ON l.execution_id = e.id
+      GROUP BY
+        e.id,
+        e.status,
+        e.current_node_id,
+        e.started_at,
+        e.completed_at,
+        e.error
+      ORDER BY e.started_at DESC, e.id DESC
+      LIMIT ?
+    `)
+    .all(safeLimit) as unknown as ExecutionSummaryRow[];
+
+  return rows.map((row) => {
+    const execution: WorkflowExecutionSummary = {
+      id: row.id,
+      status: row.status as WorkflowStatus,
+      currentNodeId: row.current_node_id,
+      startedAt: row.started_at,
+      logCount: row.log_count,
+    };
+
+    if (row.completed_at !== null) {
+      execution.completedAt = row.completed_at;
+    }
+
+    if (row.error !== null) {
+      execution.error = row.error;
+    }
+
+    return execution;
+  });
+}
+
 export function updateExecution(
   id: string,
   update: Partial<WorkflowExecution>
@@ -306,7 +382,9 @@ export function appendExecutionLog(
     const execution = getExecution(id);
 
     if (!execution) {
-      throw new Error(`Execution ${id} was not found.`);
+      throw new Error(
+        `Execution ${id} was not found.`
+      );
     }
 
     insertLogStatement.run(

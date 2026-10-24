@@ -1,5 +1,7 @@
+
 import { NextResponse } from "next/server";
-import { getExecution } from "../../../../lib/workflow-store";
+import { getExecution } from "@/lib/workflow-store";
+
 
 type RouteContext = {
   params: Promise<{
@@ -9,32 +11,20 @@ type RouteContext = {
 
 export async function GET(
   _request: Request,
-  context: RouteContext
+  { params }: RouteContext
 ) {
   try {
-    const { executionId } = await context.params;
-
-    if (!executionId?.trim()) {
-      return NextResponse.json(
-        { error: "Execution ID is required." },
-        { status: 400 }
-      );
-    }
-
+    const { executionId } = await params;
     const execution = getExecution(executionId);
 
     if (!execution) {
       return NextResponse.json(
         {
+          success: false,
           error: "Execution not found.",
           executionId,
         },
-        {
-          status: 404,
-          headers: {
-            "Cache-Control": "no-store",
-          },
-        }
+        { status: 404 }
       );
     }
 
@@ -44,17 +34,22 @@ export async function GET(
         execution,
       },
       {
-        status: 200,
         headers: {
           "Cache-Control": "no-store",
         },
       }
     );
   } catch (error) {
-    console.error("Get execution API error:", error);
+    console.error(
+      "Failed to retrieve execution:",
+      error
+    );
 
     return NextResponse.json(
-      { error: "Could not retrieve workflow execution." },
+      {
+        success: false,
+        error: "Failed to retrieve execution.",
+      },
       { status: 500 }
     );
   }
