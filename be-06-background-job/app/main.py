@@ -1,6 +1,7 @@
 
 import datetime
 import logging
+from collections.abc import Mapping
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException
@@ -44,7 +45,80 @@ class JobCreateRequest(BaseModel):
     )
 
 
-# First background function (existing test)
+# Handle permanent background job failure
+async def handle_job_failure(ctx: inngest.Context):
+    logger = logging.getLogger("uvicorn")
+
+    failure_data = ctx.event.data
+
+    # Get original event
+    original_event = failure_data.get("event", {})
+
+    if not isinstance(original_event, Mapping):
+        logger.error("Original event not found in failure payload")
+        return {"status": "ignored"}
+
+    # Get original event data
+    original_data = original_event.get("data", {})
+
+    if not isinstance(original_data, Mapping):
+        logger.error("Original event data is invalid")
+        return {"status": "ignored"}
+
+    # Get job ID
+    job_id = original_data.get("job_id")
+
+    if not isinstance(job_id, str) or not job_id:
+        logger.error("Job ID not found in failure event")
+        return {"status": "ignored"}
+
+    # Extract error message
+    error_data = failure_data.get("error", {})
+
+    if isinstance(error_data, Mapping):
+        error_message = str(
+            error_data.get("message")
+            or "Unknown background job error"
+        )
+    else:
+        error_message = "Unknown background job error"
+
+    error_message = error_message[:1000]
+
+    # Update job status to failed
+    updated_job = await ctx.step.run(
+        "mark-job-failed",
+        lambda: update_job_status(
+            job_id,
+            "failed",
+            error=error_message,
+        ),
+    )
+
+    if updated_job is None:
+        logger.error(
+            "Failed job not found in database: %s",
+            job_id,
+        )
+        return {
+            "job_id": job_id,
+            "status": "not_found",
+        }
+
+    logger.error(
+        "Background job permanently failed: %s | Error: %s",
+        job_id,
+        error_message,
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "failed",
+        "error": error_message,
+    }
+
+
+# First background function
 @inngest_client.create_function(
     fn_id="say-hello",
     trigger=inngest.TriggerEvent(event="test/hello"),
@@ -64,6 +138,7 @@ async def say_hello(ctx: inngest.Context) -> str:
     fn_id="process-background-job",
     trigger=inngest.TriggerEvent(event="job.created"),
     retries=3,
+    on_failure=handle_job_failure,
 )
 async def process_background_job(ctx: inngest.Context):
 
@@ -82,13 +157,26 @@ async def process_background_job(ctx: inngest.Context):
         raise ValueError(f"Job not found: {job_id}")
 
     # Update status to running
-    await ctx.step.run(
+    updated_job = await ctx.step.run(
         "mark-job-running",
         lambda: update_job_status(
             job_id,
             "running",
         ),
     )
+
+    if updated_job is None:
+        raise RuntimeError("Failed to mark job as running")
+
+    # Log current retry attempt
+    logger = logging.getLogger("uvicorn")
+
+    logger.warning(
+        "BE-06 job %s | Attempt %s/4",
+        job_id,
+        ctx.attempt + 1,
+    )
+
 
     # Simulate a slow background operation
     await ctx.step.sleep(
@@ -137,7 +225,7 @@ async def submit_job(
         idempotency_key,
     )
 
-    # Send event only for new or still queued jobs
+    # Send event only for new or queued jobs
     if created or job["status"] == "queued":
 
         try:
